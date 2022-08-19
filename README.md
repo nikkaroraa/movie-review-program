@@ -2,7 +2,7 @@
 
 ### Features
 - add movie review ✅
-- update movie review
+- update movie review ✅
 - delete movie review
 - add comment
 

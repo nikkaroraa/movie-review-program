@@ -30,6 +30,11 @@ pub fn process_instruction(
             rating,
             review,
         } => add_movie_review(program_id, accounts, title, rating, review),
+        MovieReviewInstruction::UpdateMovieReview {
+            title,
+            rating,
+            review,
+        } => update_movie_review(program_id, accounts, title, rating, review),
     }
 }
 
@@ -51,6 +56,11 @@ pub fn add_movie_review(
     let initializer = next_account_info(account_info_iter)?;
     let pda_account = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
+
+    if pda_account.owner != program_id {
+        msg!("illegal pda owner");
+        return Err(ProgramError::IllegalOwner);
+    }
 
     if !initializer.is_signer {
         msg!("missing required signature");
@@ -121,6 +131,75 @@ pub fn add_movie_review(
     account_data.review = review;
     account_data.is_initialized = true;
 
+    msg!("serializing account");
+    account_data.serialize(&mut &mut pda_account.data.borrow_mut()[..])?;
+    msg!("state account serialized");
+
+    Ok(())
+}
+
+pub fn update_movie_review(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    title: String,
+    rating: u8,
+    review: String,
+) -> ProgramResult {
+    msg!("updating movie review...");
+
+    // loop through the accounts that should be present
+    let account_info_iter = &mut accounts.iter();
+
+    let initializer = next_account_info(account_info_iter)?;
+    let pda_account = next_account_info(account_info_iter)?;
+
+    // check if initializer has actually signed the tx
+    if !initializer.is_signer {
+        msg!("initializer hasn't signed the tx");
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // find the pda account linked to the review that needs to be updated
+    let (pda, _bump_seed) = Pubkey::find_program_address(
+        &[initializer.key.as_ref(), title.as_bytes().as_ref()],
+        program_id,
+    );
+
+    // verify the found pda matches the passed in pda
+    if pda != *pda_account.key {
+        msg!("incorrect account passed");
+        return Err(MovieReviewError::InvalidPDA.into());
+    }
+
+    // deserialize pda data
+    msg!("unpacking state account");
+    let mut account_data =
+        try_from_slice_unchecked::<MovieAccountState>(&pda_account.data.borrow())?;
+    msg!("borrowed account data");
+
+    // make sure pda is initialized
+    if !account_data.is_initialized() {
+        msg!("account is not initialized");
+        return Err(MovieReviewError::UninitializedAccount.into());
+    }
+
+    if rating > 5 || rating < 1 {
+        msg!("rating should be between 1 & 5, both inclusive");
+        return Err(MovieReviewError::InvalidRating.into());
+    }
+
+    let account_len: usize = 1000;
+
+    if MovieAccountState::get_account_size(title.clone(), review.clone()) > account_len {
+        msg!("data length is greater than 1000 bytes");
+        return Err(MovieReviewError::InvalidDataLength.into());
+    }
+
+    // update data
+    account_data.rating = rating;
+    account_data.review = review;
+
+    // serialize pda data
     msg!("serializing account");
     account_data.serialize(&mut &mut pda_account.data.borrow_mut()[..])?;
     msg!("state account serialized");
