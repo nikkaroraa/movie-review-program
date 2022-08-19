@@ -8,6 +8,8 @@ no-entrypoint = []
 
 [dependencies]
 solana-program = "1.10.35"
+borsh = "0.9.3"
+thiserror = "1.0.31"
 
 [lib]
 crate-type = ["cdylib", "lib"]
