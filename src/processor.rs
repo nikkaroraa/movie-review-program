@@ -35,6 +35,9 @@ pub fn process_instruction(
             rating,
             review,
         } => update_movie_review(program_id, accounts, title, rating, review),
+        MovieReviewInstruction::DeleteMovieReview { title } => {
+            delete_movie_review(program_id, accounts, title)
+        }
     }
 }
 
@@ -56,11 +59,6 @@ pub fn add_movie_review(
     let initializer = next_account_info(account_info_iter)?;
     let pda_account = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
-
-    if pda_account.owner != program_id {
-        msg!("illegal pda owner");
-        return Err(ProgramError::IllegalOwner);
-    }
 
     if !initializer.is_signer {
         msg!("missing required signature");
@@ -118,7 +116,7 @@ pub fn add_movie_review(
         try_from_slice_unchecked::<MovieAccountState>(&pda_account.data.borrow()).unwrap();
     msg!("borrowed account data");
 
-    msg!("check ing if MovieAccount PDA is already initialized");
+    msg!("checking if MovieAccount PDA is already initialized");
     if account_data.is_initialized() {
         msg!("MovieAccount PDA already initialized");
         return Err(ProgramError::AccountAlreadyInitialized);
@@ -152,6 +150,11 @@ pub fn update_movie_review(
 
     let initializer = next_account_info(account_info_iter)?;
     let pda_account = next_account_info(account_info_iter)?;
+
+    if pda_account.owner != program_id {
+        msg!("illegal pda owner");
+        return Err(ProgramError::IllegalOwner);
+    }
 
     // check if initializer has actually signed the tx
     if !initializer.is_signer {
@@ -203,6 +206,60 @@ pub fn update_movie_review(
     msg!("serializing account");
     account_data.serialize(&mut &mut pda_account.data.borrow_mut()[..])?;
     msg!("state account serialized");
+
+    Ok(())
+}
+
+pub fn delete_movie_review(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    title: String,
+) -> ProgramResult {
+    msg!("deleting movie review...");
+
+    let account_info_iter = &mut accounts.iter();
+
+    let initializer = next_account_info(account_info_iter)?;
+    let pda_account = next_account_info(account_info_iter)?;
+
+    if !initializer.is_signer {
+        msg!("initializer didn't sign the tx");
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+
+    // find the pda
+    let (pda, _bump_seed) = Pubkey::find_program_address(
+        &[initializer.key.as_ref(), title.as_bytes().as_ref()],
+        program_id,
+    );
+
+    if pda != *pda_account.key {
+        msg!("invalid PDA account passed");
+        return Err(MovieReviewError::InvalidPDA.into());
+    }
+
+    msg!("unpacking state account");
+    let account_data = try_from_slice_unchecked::<MovieAccountState>(&pda_account.data.borrow())?;
+    msg!("borrowed account data");
+
+    if !account_data.is_initialized() {
+        msg!("account data not initialized yet");
+        return Err(MovieReviewError::UninitializedAccount.into());
+    }
+
+    msg!("closing review account");
+
+    // debit the rent
+    **initializer.lamports.borrow_mut() = initializer
+        .lamports()
+        .checked_add(pda_account.lamports())
+        .ok_or(MovieReviewError::AmountOverflow)?;
+    **pda_account.lamports.borrow_mut() = 0;
+
+    // empty the data
+    *pda_account.try_borrow_mut_data()? = &mut [];
+
+    msg!("review account closed!");
 
     Ok(())
 }

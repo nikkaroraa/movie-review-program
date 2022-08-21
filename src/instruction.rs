@@ -12,13 +12,28 @@ pub enum MovieReviewInstruction {
         rating: u8,
         review: String,
     },
+    DeleteMovieReview {
+        title: String,
+    },
 }
 
 #[derive(BorshDeserialize)]
-struct MovieReviewPayload {
+struct AddMovieReviewPayload {
     title: String,
     rating: u8,
     review: String,
+}
+
+#[derive(BorshDeserialize)]
+struct UpdateMovieReviewPayload {
+    title: String,
+    rating: u8,
+    review: String,
+}
+
+#[derive(BorshDeserialize)]
+struct DeleteMovieReviewPayload {
+    title: String,
 }
 
 impl MovieReviewInstruction {
@@ -29,7 +44,7 @@ impl MovieReviewInstruction {
 
         Ok(match variant {
             0 => {
-                let payload = MovieReviewPayload::try_from_slice(rest).unwrap();
+                let payload = AddMovieReviewPayload::try_from_slice(rest).unwrap();
                 Self::AddMovieReview {
                     title: payload.title,
                     rating: payload.rating,
@@ -37,11 +52,17 @@ impl MovieReviewInstruction {
                 }
             }
             1 => {
-                let payload = MovieReviewPayload::try_from_slice(rest).unwrap();
+                let payload = UpdateMovieReviewPayload::try_from_slice(rest).unwrap();
                 Self::UpdateMovieReview {
                     title: payload.title,
                     rating: payload.rating,
                     review: payload.review,
+                }
+            }
+            2 => {
+                let payload = DeleteMovieReviewPayload::try_from_slice(rest).unwrap();
+                Self::DeleteMovieReview {
+                    title: payload.title,
                 }
             }
             _ => return Err(ProgramError::InvalidInstructionData),

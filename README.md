@@ -3,8 +3,10 @@
 ### Features
 - add movie review ✅
 - update movie review ✅
-- delete movie review
+- delete movie review ✅
 - add comment
+- update comment
+- delete comment
 
 ### Environment Setup
 1. Install Rust from https://rustup.rs/

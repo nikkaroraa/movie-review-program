@@ -14,6 +14,12 @@ pub enum MovieReviewError {
 
     #[error("rating should be between 1 & 5, both inclusive")]
     InvalidRating,
+
+    #[error("incorrect account")]
+    IncorrectAccount,
+
+    #[error("amount overflow")]
+    AmountOverflow,
 }
 
 impl From<MovieReviewError> for ProgramError {
